@@ -19,7 +19,3 @@ def create_vectorstore(chunks):
 
     return vectorstore
 
-def get_retriever(chunks):
-    vectorstore = create_vectorstore(chunks)
-    retriever = vectorstore.as_retriever()
-    return retriever

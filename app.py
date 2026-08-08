@@ -1,122 +1,117 @@
 import os
+import shutil
 import streamlit as st
 from dotenv import load_dotenv
-from utils.loader import load_pdfs_from_folder
-load_dotenv()
-print("API KEY:", os.getenv("GOOGLE_API_KEY"))
 
-#from utils.loader import load_pdf
+from utils.loader import load_pdfs_from_folder
 from utils.splitter import split_text
 from utils.vectorstore import create_vectorstore
+from utils.rag import rag_pipeline
+
+from models import client
+
+load_dotenv()
+
+# ---------------- PAGE CONFIG ---------------- #
+
+st.set_page_config(
+    page_title="AI PDF Chatbot",
+    page_icon="📄",
+    layout="wide"
+)
+
+st.title("📄 AI-Powered PDF Chatbot")
+st.caption("Upload PDFs and ask questions based only on their contents.")
+
+# ---------------- SESSION STATE ---------------- #
+
+if "retriever" not in st.session_state:
+    st.session_state.retriever = None
+
+# ---------------- SIDEBAR ---------------- #
 
 uploaded_files = st.sidebar.file_uploader(
-    "Upload PDFs",
+    "Upload PDF(s)",
     type="pdf",
     accept_multiple_files=True
 )
 
-file_paths = []
+show_sources = st.sidebar.checkbox(
+    "Show Sources",
+    value=True
+)
 
-if uploaded_files:
-    if not os.path.exists("temp_pdfs"):
-        os.makedirs("temp_pdfs")
-
-    for file in uploaded_files:
-        file_path = os.path.join("temp_pdfs", file.name)
-        with open(file_path, "wb") as f:
-            f.write(file.getbuffer())
-        file_paths.append(file_path)
-
-
-if file_paths:
-    docs = load_pdfs_from_folder("temp_pdfs")
-else:
-    docs = load_pdfs_from_folder("data")  # fallback
-    
-'''chunks = split_text(docs)
-vectorstore = create_vectorstore(chunks)
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})'''
-
-'''if st.sidebar.button("Process PDFs"):
-    chunks = split_text(docs)
-    vectorstore = create_vectorstore(chunks)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    st.success("PDFs processed!")'''
-    
-if "retriever" not in st.session_state:
+if st.sidebar.button("🗑 Clear Chat"):
     st.session_state.retriever = None
+    st.rerun()
 
-if st.sidebar.button("Process PDFs"):
-    chunks = split_text(docs)
-    vectorstore = create_vectorstore(chunks)
-    st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+# ---------------- PROCESS PDFs ---------------- #
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+if st.sidebar.button("📥 Process PDFs"):
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+    if not uploaded_files:
+        st.sidebar.warning("Please upload at least one PDF.")
+        st.stop()
 
-'''while True:
-    query = st.text_input("Ask something:")
-    if query.lower() == 'exit':
-        break
-    docs = retriever.invoke(query)
+    with st.spinner("Processing PDFs..."):
+        os.makedirs("temp_pdfs", exist_ok=True)
+        for filename in os.listdir("temp_pdfs"):
+           file_path = os.path.join("temp_pdfs", filename)
 
-    # 👉 THIS IS YOUR CONTEXT
-    context = "\n".join([doc.page_content for doc in docs])
+           if os.path.isfile(file_path):
+                os.remove(file_path)
 
-    prompt = f"""
-    You are a helpful assistant.
+        for file in uploaded_files:
 
-    Answer ONLY using the provided context.
+            with open(
+                os.path.join("temp_pdfs", file.name),
+                "wb"
+            ) as f:
+
+                f.write(file.getbuffer())
+
+        docs = load_pdfs_from_folder("temp_pdfs")
+
+        chunks = split_text(docs)
+
+        vectorstore = create_vectorstore(chunks)
+
+        st.session_state.retriever = vectorstore.as_retriever(
+            search_kwargs={"k":4}
+        )
+
+    st.sidebar.success("PDFs processed successfully ✅")
     
-    Give a well-structured answer with:
-   - Headings
-   - Bullet points
-   - Clean formatting
-   
-    If the answer is not in the context, say:
-   "I don't know based on the provided document."
+query = st.text_input(
+    "💬 Ask a question about your PDFs"
+)
 
-    Context:
-    {context}
+if query:
 
-    Question:
-    {query}
-    """
+    if st.session_state.retriever is None:
 
-    response = llm.invoke(prompt)
+        st.warning("Please process PDFs first.")
 
-    print("\n🧠 Answer:\n")
-    print(response.content.strip())
+    else:
 
-    #print(response.content)
+        with st.spinner("Generating answer..."):
 
-    #print("Vector DB created successfully ✅")
-    #print("Retrieved chunks:\n", docs)
-    #print("Total chunks:", len(chunks))
-    #print(chunks[0].page_content[:500])'''
-    
-query = st.text_input("Ask something:")
+            answer, docs = rag_pipeline(
+                query=query,
+                retriever=st.session_state.retriever,
+                client=client
+            )
 
-if query and st.session_state.retriever:
-    docs = st.session_state.retriever.invoke(query)
+        st.markdown(answer)
 
-    context = "\n".join([doc.page_content for doc in docs])
+        if show_sources:
 
-    prompt = f"""
-    You are a helpful assistant.
+            with st.expander("📚 Retrieved Sources"):
 
-    Answer ONLY using the provided context.
+                for i, doc in enumerate(docs, start=1):
 
-    Context:
-    {context}
+                    st.markdown(f"### Chunk {i}")
 
-    Question:
-    {query}
-    """
+                    st.write(doc.page_content[:700])
 
-    response = llm.invoke(prompt)
-    try:
-        st.write(response.content)
-    except:
-        st.write(response)
+                    st.divider()

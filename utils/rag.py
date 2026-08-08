@@ -1,29 +1,38 @@
 def rag_pipeline(query, retriever, client):
+
     docs = retriever.invoke(query)
 
-    context = "\n".join([doc.page_content for doc in docs])
+    context = "\n\n".join(
+        doc.page_content
+        for doc in docs
+    )
 
     prompt = f"""
-    You are a helpful assistant.
-    Answer ONLY using the provided context.
+You are an AI assistant.
 
-    Give a well-structured answer with:
-    - Headings
-    - Bullet points
+Answer ONLY using the provided context.
 
-    Context:
-    {context}
+Rules:
 
-    Question:
-    {query}
-    """
+- Never use outside knowledge.
+- Never hallucinate.
+- If the answer is missing, say:
 
-    #response = llm.invoke(prompt)
+"I couldn't find that information in the uploaded documents."
 
-    #return response.content, docs
+- Use Markdown.
+- Use headings and bullet points when useful.
+
+Context:
+{context}
+
+Question:
+{query}
+"""
+
     response = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=prompt
-)
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
 
     return response.text, docs

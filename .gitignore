@@ -46,7 +46,8 @@ persist/
 vectorstore/
 *.sqlite3
 
-# Temp upload folders
+# Temporary uploaded PDFs
 temp/
 tmp/
 uploads/
+temp_pdfs/
