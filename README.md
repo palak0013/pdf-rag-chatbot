@@ -8,11 +8,11 @@ The application also displays the retrieved source chunks, providing transparenc
 
 ## Live Demo
 
-[Try the AI-Powered PDF RAG Chatbot](YOUR_STREAMLIT_APP_URL)
+[Try the AI-Powered PDF RAG Chatbot](https://pdf-rag-chatbot1.streamlit.app/)
 
 ## GitHub Repository
 
-[View Source Code](YOUR_GITHUB_REPOSITORY_URL)
+[View Source Code](https://github.com/palak0013/pdf-rag-chatbot)
 
 ---
 
